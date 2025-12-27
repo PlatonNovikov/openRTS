@@ -3,12 +3,12 @@
 #include "../include/a_star.h"
 #include "../include/openRTS.h"
 
-void list_push(t_path *list, t_node *node)
+void	list_push(t_path *list, t_node *node)
 {
 	list->nodes[list->size++] = node;
 }
 
-int list_contains(t_path *list, t_node *node)
+int	list_contains(t_path *list, t_node *node)
 {
 	for (int i = 0; i < list->size; i++)
 		if (list->nodes[i] == node)
@@ -16,9 +16,10 @@ int list_contains(t_path *list, t_node *node)
 	return 0;
 }
 
-t_node *get_lowest_f(t_path *list)
+t_node	*get_lowest_f(t_path *list)
 {
-	t_node *best = list->nodes[0];
+	t_node	*best = list->nodes[0];
+
 	for (int i = 1; i < list->size; i++)
 	{
 		if (list->nodes[i]->f_cost < best->f_cost)
@@ -27,7 +28,7 @@ t_node *get_lowest_f(t_path *list)
 	return best;
 }
 
-void list_remove(t_path *list, t_node *node)
+void	list_remove(t_path *list, t_node *node)
 {
 	for (int i = 0; i < list->size; i++)
 	{
@@ -39,16 +40,15 @@ void list_remove(t_path *list, t_node *node)
 	}
 }
 
-int heuristic(t_node *a, t_node *b)
+int	heuristic(t_node *a, t_node *b)
 {
 	return abs(a->x - b->x) + abs(a->y - b->y);
 }
 
-
 t_node **create_node_grid(t_map map)
 {
-	t_node **nodes;
-	int x, y;
+	t_node	**nodes;
+	int		x, y;
 
 	nodes = calloc(map.height, sizeof(t_node *));
 	if (!nodes)
@@ -170,23 +170,22 @@ void	free_node_grid(t_node **grid, int height)
 
 t_path pathfinding(t_map map, Vector2i start, Vector2i end)
 {
-	t_node **grid = create_node_grid(map);
-	t_path path = {0};
+	t_node	**grid = create_node_grid(map);
+	t_path	path = {0};
 
-	t_node *start_node = &grid[start.y][start.x];
-	t_node *end_node   = &grid[end.y][end.x];
+	t_node	*start_node = &grid[start.y][start.x];
+	t_node	*end_node   = &grid[end.y][end.x];
 
-	t_path open = {0};
-	t_path closed = {0};
+	t_path	open = {0};
+	t_path	closed = {0};
 
-	// Инициализация стартового узла
+	bool found_path = false;
+
 	start_node->g_cost = 0;
 	start_node->h_cost = heuristic(start_node, end_node);
 	start_node->f_cost = start_node->g_cost + start_node->h_cost;
 
 	list_push(&open, start_node);
-
-	bool found_path = false;
 
 	while (open.size > 0)
 	{
@@ -222,7 +221,6 @@ t_path pathfinding(t_map map, Vector2i start, Vector2i end)
 		}
 	}
 
-	// Строим путь только если он найден
 	if (found_path)
 	{
 		t_node *current = &grid[end.y][end.x];
@@ -241,9 +239,7 @@ t_path pathfinding(t_map map, Vector2i start, Vector2i end)
 		}
 	}
 	else
-	{
-		path.size = 0; // Путь не найден
-	}
+		path.size = 0; // Path not found
 
 	free_node_grid(grid, map.height);
 

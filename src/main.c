@@ -48,9 +48,9 @@ void	load_sprites(void)
 	sprites.sprite_soldier = LoadTexture("sprites/soldier_front.png");
 }
 
-void	send_unit_to(t_unit *unit, t_map map, float x, float y)
+void	send_unit_to(t_unit *unit, t_map map, Vector2i tile_dest)
 {
-	unit->destination = screen_to_map((Vector2i){(int)x, (int)y});
+	unit->destination = tile_dest;
 	unit->path = pathfinding(map, unit->position, unit->destination);
 }
 
@@ -198,9 +198,14 @@ void	handle_mouse(t_unit **units_selected, size_t selected_count, t_map map, Cam
 	if (IsMouseButtonPressed(MOUSE_RIGHT_BUTTON))
 		{
 			Vector2 mouse_pos = GetScreenToWorld2D(GetMousePosition(), *camera);
+			if (screen_to_map((Vector2i){(int)mouse_pos.x, (int)mouse_pos.y}).x < 0 ||
+				screen_to_map((Vector2i){(int)mouse_pos.x, (int)mouse_pos.y}).x >= map.width ||
+				screen_to_map((Vector2i){(int)mouse_pos.x, (int)mouse_pos.y}).y < 0 ||
+				screen_to_map((Vector2i){(int)mouse_pos.x, (int)mouse_pos.y}).y >= map.height)
+				return ;
 			for (size_t i = 0; i < selected_count; i++)
 			{
-				send_unit_to(units_selected[i], map, mouse_pos.x, mouse_pos.y);
+				send_unit_to(units_selected[i], map, screen_to_map((Vector2i){(int)mouse_pos.x, (int)mouse_pos.y}));
 			}
 		}
 
