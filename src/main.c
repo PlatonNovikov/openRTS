@@ -1,11 +1,29 @@
 #include <stdio.h>
-#include <stdlib.h>
 #include <math.h>
 #include <assert.h>
 
-#include "openRTS.h"
+#include "../include/openRTS.h"
+#include "../include/a_star.h"
 
 struct s_sprites	sprites;
+
+Vector2 map_to_screen(Vector2i tile_pos)
+{
+	Vector2	screen_pos;
+
+	screen_pos.x = tile_pos.x * TILE_SIZE_PX;
+	screen_pos.y = tile_pos.y * TILE_SIZE_PX;
+	return (screen_pos);
+}
+
+Vector2i screen_to_map(Vector2i screen_pos)
+{
+	Vector2i	tile_pos;
+
+	tile_pos.x = screen_pos.x / TILE_SIZE_PX;
+	tile_pos.y = screen_pos.y / TILE_SIZE_PX;
+	return (tile_pos);
+}
 
 void	draw_units(t_unit **units, int count)
 {
@@ -14,7 +32,10 @@ void	draw_units(t_unit **units, int count)
 		switch (units[i]->type)
 		{
 		case UNIT_SOLDIER:
-			DrawTexture(sprites.sprite_soldier, (int)units[i]->position.x, (int)units[i]->position.y, WHITE);
+			DrawTexture(sprites.sprite_soldier,
+						map_to_screen(units[i]->position).x,
+						map_to_screen(units[i]->position).y,
+						WHITE);
 			break;
 		default:
 			break;
@@ -27,50 +48,76 @@ void	load_sprites(void)
 	sprites.sprite_soldier = LoadTexture("sprites/soldier_front.png");
 }
 
-void update_units(t_unit **units, int count, float dt)
+void	send_unit_to(t_unit *unit, t_map map, float x, float y)
 {
-	for (int i = 0; i < count; i++)
-	{
-		float dx = units[i]->destination.x - units[i]->position.x;
-		float dy = units[i]->destination.y - units[i]->position.y;
-
-		float dist = sqrtf(dx * dx + dy * dy);
-
-		if (dist < 0.001f)
-		{
-			units[i]->position = units[i]->destination;
-			continue;
-		}
-
-		float max_step = units[i]->speed * dt;
-
-		if (dist <= max_step)
-		{
-			units[i]->position = units[i]->destination;
-		}
-		else
-		{
-			float nx = dx / dist;
-			float ny = dy / dist;
-
-			units[i]->position.x += nx * max_step;
-			units[i]->position.y += ny * max_step;
-		}
-	}
+	unit->destination = screen_to_map((Vector2i){(int)x, (int)y});
+	unit->path = pathfinding(map, unit->position, unit->destination);
 }
 
-void send_unit_to(t_unit *unit, float x, float y)
+void update_units(t_unit **units, int count, float dt)
 {
-	// Adjust for unit size to center the destination
-	x = (x - unit->px_size.x / 2.0f);
-	y = (y - unit->px_size.y / 2.0f);
+	static float accumulated_time = 0.0f;
+	accumulated_time += dt;
 
-	// Snap to grid
-	x = roundf(x / 64.0f) * 64.0f;
-	y = roundf(y / 64.0f) * 64.0f;
+	// Двигаем юнитов с фиксированным интервалом
+	float move_interval = 0.1f; // время между шагами в секундах
 
-	unit->destination.x = x;
-	unit->destination.y = y;
+	if (accumulated_time >= move_interval)
+	{
+		accumulated_time -= move_interval;
+
+		for (int i = 0; i < count; i++)
+		{
+			t_unit *unit = units[i];
+
+			if (unit->path.size == 0)
+				continue;
+
+			// Берем первый узел пути (текущая цель)
+			// Путь уже развернут в правильном порядке
+			t_node *next_node = unit->path.nodes[0];
+			Vector2i next_pos = {next_node->x, next_node->y};
+
+			// Текущая позиция в grid-координатах
+			Vector2i current_pos = {
+				(int)unit->position.x,
+				(int)unit->position.y
+			};
+
+			// Если уже на целевом узле
+			if (current_pos.x == next_pos.x && current_pos.y == next_pos.y)
+			{
+				// Удаляем достигнутый узел из пути
+				for (int j = 0; j < unit->path.size - 1; j++)
+				{
+					unit->path.nodes[j] = unit->path.nodes[j + 1];
+				}
+				unit->path.size--;
+
+				// Если путь не пуст, двигаемся к следующему узлу
+				if (unit->path.size > 0)
+				{
+					next_node = unit->path.nodes[0];
+					next_pos = (Vector2i){next_node->x, next_node->y};
+				}
+				else
+				{
+					continue; // Путь завершен
+				}
+			}
+
+			// Движение к следующему узлу
+			if (current_pos.x < next_pos.x)
+				unit->position.x += 1;
+			else if (current_pos.x > next_pos.x)
+				unit->position.x -= 1;
+
+			if (current_pos.y < next_pos.y)
+				unit->position.y += 1;
+			else if (current_pos.y > next_pos.y)
+				unit->position.y -= 1;
+		}
+	}
 }
 
 t_unit	*make_soldier(float x, float y)
@@ -85,7 +132,7 @@ t_unit	*make_soldier(float x, float y)
 	unit->destination.x =	x;
 	unit->destination.y =	y;
 	unit->type =			UNIT_SOLDIER;
-	unit->speed =			SPEED_SOLDIER;
+	unit->tpf =				TPF_SOLDIER;
 	unit->selected =		false;
 	unit->tile_size.x =		TILE_SIZE_X_SOLDIER;
 	unit->tile_size.y =		TILE_SIZE_Y_SOLDIER;
@@ -96,38 +143,28 @@ t_unit	*make_soldier(float x, float y)
 
 void	draw_tile_grid(Camera2D camera, t_map map)
 {
-	const float tile_size_px_x = 64.0f;
-	const float tile_size_px_y = 64.0f;
-
-	Vector2 top_left = GetScreenToWorld2D((Vector2){0, 0}, camera);
-	Vector2 bottom_right = GetScreenToWorld2D((Vector2){(float)GetScreenWidth(), (float)GetScreenHeight()}, camera);
-
-	int start_x = (int)(top_left.x / tile_size_px_x) - 1;
-	int start_y = (int)(top_left.y / tile_size_px_y) - 1;
-	int end_x = (int)(bottom_right.x / tile_size_px_x) + 1;
-	int end_y = (int)(bottom_right.y / tile_size_px_y) + 1;
+	int start_x = (int)(camera.target.x - camera.offset.x / camera.zoom) / TILE_SIZE_PX;
+	int start_y = (int)(camera.target.y - camera.offset.y / camera.zoom) / TILE_SIZE_PX;
+	int end_x = (int)(camera.target.x + (GetScreenWidth() - camera.offset.x) / camera.zoom) / TILE_SIZE_PX + 1;
+	int end_y = (int)(camera.target.y + (GetScreenHeight() - camera.offset.y) / camera.zoom) / TILE_SIZE_PX + 1;
 
 	if (start_x < 0) start_x = 0;
 	if (start_y < 0) start_y = 0;
 	if (end_x > map.width) end_x = map.width;
 	if (end_y > map.height) end_y = map.height;
 
-	DrawRectangle(start_x * tile_size_px_x, start_y * tile_size_px_y,
-				  (end_x - start_x) * tile_size_px_x, (end_y - start_y) * tile_size_px_y, WHITE);
-
-	for (int x = start_x; x <= end_x; x++)
+	for (int y = start_y; y < end_y; y++)
 	{
-		DrawLineV((Vector2){x * tile_size_px_x, start_y * tile_size_px_y},
-				  (Vector2){x * tile_size_px_x, end_y * tile_size_px_y}, LIGHTGRAY);
-	}
-	for (int y = start_y; y <= end_y; y++)
-	{
-		DrawLineV((Vector2){start_x * tile_size_px_x, y * tile_size_px_y},
-				  (Vector2){end_x * tile_size_px_x, y * tile_size_px_y}, LIGHTGRAY);
+		for (int x = start_x; x < end_x; x++)
+		{
+			Color tile_color = map.tiles[y][x].is_blocked ? RED : LIGHTGRAY;
+			DrawRectangle(x * TILE_SIZE_PX, y * TILE_SIZE_PX, TILE_SIZE_PX, TILE_SIZE_PX, tile_color);
+			DrawRectangleLines(x * TILE_SIZE_PX, y * TILE_SIZE_PX, TILE_SIZE_PX, TILE_SIZE_PX, DARKGRAY);
+		}
 	}
 }
 
-void handle_controls(Camera2D *camera, float dt)
+void	handle_controls(Camera2D *camera, t_map map, float dt)
 {
 	const float camera_speed = 500.0f;
 
@@ -139,6 +176,58 @@ void handle_controls(Camera2D *camera, float dt)
 		camera->target.x -= camera_speed * dt;
 	if (IsKeyDown(KEY_D))
 		camera->target.x += camera_speed * dt;
+
+	//DEBUG
+
+	//make tile unpassable
+	if (IsKeyDown(KEY_U))
+	{
+		Vector2 mouse_pos = GetScreenToWorld2D(GetMousePosition(), *camera);
+		int tile_x = (int)(mouse_pos.x / TILE_SIZE_PX);
+		int tile_y = (int)(mouse_pos.y / TILE_SIZE_PX);
+		if (tile_x >= 0 && tile_x < map.width && tile_y >= 0 && tile_y < map.height)
+			map.tiles[tile_y][tile_x].is_blocked = true;
+	}
+}
+
+void	handle_mouse(t_unit **units_selected, size_t selected_count, t_map map, Camera2D *camera)
+{
+	float wheel;
+
+	//right click to move selected units
+	if (IsMouseButtonPressed(MOUSE_RIGHT_BUTTON))
+		{
+			Vector2 mouse_pos = GetScreenToWorld2D(GetMousePosition(), *camera);
+			for (size_t i = 0; i < selected_count; i++)
+			{
+				send_unit_to(units_selected[i], map, mouse_pos.x, mouse_pos.y);
+			}
+		}
+
+	//wheel zoom
+	wheel = GetMouseWheelMove();
+	if (wheel != 0)
+	{
+		camera->zoom += wheel * 0.1f;
+		if (camera->zoom < 0.1f)
+			camera->zoom = 0.1f;
+	}
+}
+
+t_map	create_map(int width, int height)
+{
+	t_map	map;
+	int		x;
+
+	map.width = width;
+	map.height = height;
+
+	map.tiles = calloc(height, sizeof(t_tile *));
+	for (x = 0; x < height; x++)
+	{
+		map.tiles[x] = calloc(width, sizeof(t_tile));
+	}
+	return (map);
 }
 
 int	main(void)
@@ -153,15 +242,23 @@ int	main(void)
 	camera.rotation = 0.0f;
 	camera.zoom = 1.0f;
 
-	t_map map = { 10, 10 };
+	t_map map = create_map(100, 100);
+	map.nodes = create_node_grid(map);
 
 	float		dt;
 
 	t_unit		*units[MAX_UNITS];
+	size_t		unit_count = 0;
+	t_unit		*units_selected[MAX_UNITS];
+	size_t		selected_count = 0;
 
-	units[0] = make_soldier(100.0f, 100.0f);
-	units[0]->destination.x = 400.0f;
-	units[0]->destination.y = 400.0f;
+	units[0] = make_soldier(2, 2);
+	units[0]->destination.x = 4;
+	units[0]->destination.y = 4;
+
+	units_selected[0] = units[0];
+	unit_count++;
+	selected_count++;
 
 	InitWindow(screenWidth, screenHeight, "openRTS");
 	SetTargetFPS(60);
@@ -176,13 +273,9 @@ int	main(void)
 		BeginMode2D(camera);
 		draw_tile_grid(camera, map);
 		draw_units(units, 1);
-		handle_controls(&camera, dt);
+		handle_controls(&camera, map, dt);
 		EndMode2D();
-		if (IsMouseButtonPressed(MOUSE_RIGHT_BUTTON))
-		{
-			Vector2 mouse_pos = GetScreenToWorld2D(GetMousePosition(), camera);
-			send_unit_to(units[0], mouse_pos.x, mouse_pos.y);
-		}
+		handle_mouse(units_selected, selected_count, map, &camera);
 		update_units(units, 1, dt);
 		EndDrawing();
 	}
