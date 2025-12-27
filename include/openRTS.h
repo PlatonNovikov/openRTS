@@ -3,8 +3,8 @@
 
 #define MAX_UNITS	1024
 
-#define SPEED_SOLDIER		100.0f
-#define MAX_HEALTH_SOLDIER	100
+#define SPEED_SOLDIER				100.0f
+#define MAX_HEALTH_SOLDIER			100
 #define TILE_SIZE_X_SOLDIER			2
 #define TILE_SIZE_Y_SOLDIER			2
 #define PX_SIZE_X_SOLDIER			64

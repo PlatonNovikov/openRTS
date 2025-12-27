@@ -61,8 +61,13 @@ void update_units(t_unit **units, int count, float dt)
 
 void send_unit_to(t_unit *unit, float x, float y)
 {
-	x = roundf((x - 32.0f) / 64.0f) * 64.0f;
-	y = roundf((y - 32.0f) / 64.0f) * 64.0f;
+	// Adjust for unit size to center the destination
+	x = (x - unit->px_size.x / 2.0f);
+	y = (y - unit->px_size.y / 2.0f);
+
+	// Snap to grid
+	x = roundf(x / 64.0f) * 64.0f;
+	y = roundf(y / 64.0f) * 64.0f;
 
 	unit->destination.x = x;
 	unit->destination.y = y;
