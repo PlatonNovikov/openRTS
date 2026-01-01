@@ -2,6 +2,7 @@
 
 #include "../include/a_star.h"
 #include "../include/openRTS.h"
+#include "../include/types.h"
 
 void	list_push(t_path *list, t_node *node)
 {
@@ -237,6 +238,9 @@ t_path pathfinding(t_map map, Vector2i start, Vector2i end)
 			path.nodes[i] = path.nodes[path.size - i - 1];
 			path.nodes[path.size - i - 1] = tmp;
 		}
+		for (int i = 0; path.nodes[i]; i++)
+			path.nodes[i] = path.nodes[i + 1];
+		path.size -= 1;
 	}
 	else
 		path.size = 0; // Path not found
