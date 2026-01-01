@@ -9,17 +9,13 @@
 
 struct s_sprites	sprites;
 
-Vector2i v2f_to_v2i(Vector2 v)
+t_tile	*get_tile(Vector2 coord, t_map map)
 {
-	return ((Vector2i){(int)v.x, (int)v.y});
+	// i have fucked up the coordinates somewhere ._.
+	return (&map.tiles[(int)coord.y][(int)coord.x]);
 }
 
-t_tile	*get_tile(Vector2i coord, t_map map)
-{
-	return (&map.tiles[coord.y][coord.x]);
-}
-
-Vector2 map_to_screen(Vector2i tile_pos)
+Vector2 map_to_screen(Vector2 tile_pos)
 {
 	Vector2	screen_pos;
 
@@ -28,9 +24,9 @@ Vector2 map_to_screen(Vector2i tile_pos)
 	return (screen_pos);
 }
 
-Vector2i screen_to_map(Vector2i screen_pos)
+Vector2 screen_to_map(Vector2 screen_pos)
 {
-	Vector2i	tile_pos;
+	Vector2	tile_pos;
 
 	tile_pos.x = screen_pos.x / TILE_SIZE_PX;
 	tile_pos.y = screen_pos.y / TILE_SIZE_PX;
@@ -50,8 +46,8 @@ void	draw_units(t_unit **units, int count)
 		{
 		case UNIT_SOLDIER:
 			DrawTexture(sprites.sprite_soldier,
-				map_to_screen(units[i]->position).x,
-				map_to_screen(units[i]->position).y,
+				map_to_screen(units[i]->pos).x,
+				map_to_screen(units[i]->pos).y,
 				WHITE);
 			break;
 		default:
@@ -65,10 +61,10 @@ void	load_sprites(void)
 	sprites.sprite_soldier = LoadTexture("sprites/soldier_front.png");
 }
 
-void	send_unit_to(t_unit *unit, t_map map, Vector2i tile_dest)
+void	send_unit_to(t_unit *unit, t_map map, Vector2 tile_dest)
 {
 	unit->destination = tile_dest;
-	unit->path = pathfinding(map, unit->position, unit->destination);
+	unit->path = pathfinding(map, unit->pos, unit->destination);
 }
 
 void clear_path(t_path *path)
@@ -89,36 +85,34 @@ void update_units(t_unit **units, int count, t_map map)
 		// Берем первый узел пути (текущая цель)
 		// Путь уже развернут в правильном порядке
 		t_node *next_node = unit->path.nodes[0];
-		Vector2i next_pos = {next_node->x, next_node->y};
+		Vector2 next_pos = next_node->pos;
 
 		if (get_tile(next_pos, map)->is_blocked)
 		{
-			unit->path = pathfinding(map, unit->position, unit->destination);
+			unit->path = pathfinding(map, unit->pos, unit->destination);
 			if (unit->path.size == 0)
 				return ;
 			next_node = unit->path.nodes[0];
-			next_pos = (Vector2i){next_node->x, next_node->y};
+			next_pos = next_node->pos;
 		}
 
 		// Текущая позиция в grid-координатах
-		unit->position = next_pos;
+		unit->pos = next_pos;
 		for (int i = 0; unit->path.nodes[i]; i++)
 			unit->path.nodes[i] = unit->path.nodes[i + 1];
 		unit->path.size -= 1;
 	}
 }
 
-t_unit	*make_soldier(float x, float y)
+t_unit	*make_soldier(Vector2 pos)
 {
 	t_unit	*unit = calloc(1, sizeof(t_unit));
 
 	assert(unit != NULL);
 
 	unit->health =		MAX_HEALTH_SOLDIER;
-	unit->position.x =	x;
-	unit->position.y =	y;
-	unit->destination.x =	x;
-	unit->destination.y =	y;
+	unit->pos =		pos;
+	unit->destination =	pos;
 	unit->type =		UNIT_SOLDIER;
 	unit->tpf =		TPF_SOLDIER;
 	unit->selected =	false;
@@ -178,7 +172,7 @@ void	handle_controls(Camera2D *camera, t_map map, float dt)
 	}
 }
 
-bool	mouse_out_of_bounds(Vector2i mouse_pos, t_map map)
+bool	mouse_out_of_bounds(Vector2 mouse_pos, t_map map)
 {
 	return (screen_to_map(mouse_pos).x < 0 ||
 		screen_to_map(mouse_pos).x >= map.width ||
@@ -188,7 +182,7 @@ bool	mouse_out_of_bounds(Vector2i mouse_pos, t_map map)
 
 void	handle_mouse_right_button(t_map map, Camera2D camera, size_t selected_count, t_unit *units_selected)
 {
-	Vector2i mouse_pos = v2f_to_v2i(GetScreenToWorld2D(GetMousePosition(), camera));
+	Vector2 mouse_pos = GetScreenToWorld2D(GetMousePosition(), camera);
 
 	if (mouse_out_of_bounds(mouse_pos, map))
 		return ;
@@ -252,7 +246,7 @@ int	main(void)
 	t_unit	*units_selected[MAX_UNITS];
 	size_t	selected_count = 0;
 
-	units[0] = make_soldier(2, 2);
+	units[0] = make_soldier((Vector2){2, 2});
 	units[0]->destination.x = 4;
 	units[0]->destination.y = 4;
 
@@ -261,7 +255,7 @@ int	main(void)
 	selected_count++;
 
 	InitWindow(screenWidth, screenHeight, "openRTS");
-	SetTargetFPS(10);
+	SetTargetFPS(30);
 	load_sprites();
 
 	while (!WindowShouldClose())

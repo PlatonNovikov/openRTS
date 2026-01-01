@@ -9,8 +9,7 @@
 
 typedef struct	s_node
 {
-	int	x;
-	int	y;
+	Vector2	pos;
 	int	g_cost;
 	int	h_cost;
 	int	f_cost;
@@ -39,20 +38,14 @@ typedef enum
 	FACING_RIGHT
 } e_facing_direction;
 
-typedef struct vector2i
-{
-	int	x;
-	int	y;
-} Vector2i;
-
 typedef struct s_unit
 {
 	short int		health;
-	Vector2i		position;	//coordinates of the tile
-	Vector2i		destination;	//coordinates of the tile
+	Vector2			pos;		//coordinates of the tile
+	Vector2			destination;	//coordinates of the tile
 	int			tpf;			//tiles per frame
-	Vector2i		tile_size;
-	Vector2i		px_size;
+	Vector2			tile_size;
+	Vector2			px_size;
 
 	bool			selected;
 

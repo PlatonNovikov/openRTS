@@ -1,4 +1,6 @@
 #include <stdlib.h>
+#include "raylib.h"
+#include "raymath.h"
 
 #include "../include/a_star.h"
 #include "../include/openRTS.h"
@@ -43,7 +45,7 @@ void	list_remove(t_path *list, t_node *node)
 
 int	heuristic(t_node *a, t_node *b)
 {
-	return abs(a->x - b->x) + abs(a->y - b->y);
+	return abs((int)(a->pos.x - b->pos.x)) + abs((int)(a->pos.y - b->pos.y));
 }
 
 t_node **create_node_grid(t_map map)
@@ -69,8 +71,8 @@ t_node **create_node_grid(t_map map)
 
 		for (x = 0; x < map.width; x++)
 		{
-			nodes[y][x].x = x;
-			nodes[y][x].y = y;
+			nodes[y][x].pos.x = x;
+			nodes[y][x].pos.y = y;
 			nodes[y][x].is_blocked = map.tiles[y][x].is_blocked;
 			nodes[y][x].g_cost = 0;
 			nodes[y][x].h_cost = 0;
@@ -169,13 +171,13 @@ void	free_node_grid(t_node **grid, int height)
 	free(grid);
 }
 
-t_path pathfinding(t_map map, Vector2i start, Vector2i end)
+t_path pathfinding(t_map map, Vector2 start, Vector2 end)
 {
 	t_node	**grid = create_node_grid(map);
 	t_path	path = {0};
 
-	t_node	*start_node = &grid[start.y][start.x];
-	t_node	*end_node   = &grid[end.y][end.x];
+	t_node	*start_node = &grid[(int)start.y][(int)start.x];
+	t_node	*end_node   = &grid[(int)end.y][(int)end.x];
 
 	t_path	open = {0};
 	t_path	closed = {0};
@@ -192,7 +194,7 @@ t_path pathfinding(t_map map, Vector2i start, Vector2i end)
 	{
 		t_node *current = get_lowest_f(&open);
 
-		if (current->x == end_node->x && current->y == end_node->y)
+		if (Vector2Equals(current->pos, end_node->pos))
 		{
 			found_path = true;
 			break;
@@ -224,7 +226,7 @@ t_path pathfinding(t_map map, Vector2i start, Vector2i end)
 
 	if (found_path)
 	{
-		t_node *current = &grid[end.y][end.x];
+		t_node *current = &grid[(int)end.y][(int)end.x];
 		while (current)
 		{
 			path.nodes[path.size++] = current;
