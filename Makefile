@@ -1,4 +1,4 @@
-CC := cc
+CC := gcc
 
 SRC_DIR := src
 OBJ_DIR := build/obj
@@ -9,8 +9,8 @@ TARGET := $(BIN_DIR)/openRTS
 SRCS := $(wildcard $(SRC_DIR)/*.c)
 OBJS := $(SRCS:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
 
-CFLAGS := -Wall -Wextra -Werror -g -Iinclude
-LDFLAGS := -lraylib -lm -ldl -lpthread -lX11
+CFLAGS := -Wall -Wextra -g -I ./include/
+LDFLAGS := -L ./lib/ -lraylib -lm -ldl -lpthread -lX11
 
 all: $(TARGET)
 

@@ -43,7 +43,7 @@ typedef struct s_unit
 	short int		health;
 	Vector2			pos;		//coordinates of the tile
 	Vector2			destination;	//coordinates of the tile
-	int			tpf;			//tiles per frame
+	int				tpt;			//tiles per tick
 	Vector2			tile_size;
 	Vector2			px_size;
 
@@ -57,7 +57,8 @@ typedef struct s_unit
 
 typedef struct s_tile
 {
-	bool	is_blocked;
+	bool	is_blocked; //by an obsticle or something
+	bool	unit_standing;
 } t_tile;
 
 typedef struct s_map

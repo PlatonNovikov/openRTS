@@ -5,9 +5,9 @@
 
 #define TILE_SIZE_PX	64
 
-//TPF - tiles per frame
+//TPF - tiles per tick
 
-#define TPF_SOLDIER	        100
+#define TPT_SOLDIER	        100
 #define MAX_HEALTH_SOLDIER	100
 #define TILE_SIZE_X_SOLDIER	2
 #define TILE_SIZE_Y_SOLDIER	2

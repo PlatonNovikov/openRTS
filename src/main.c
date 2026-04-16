@@ -3,16 +3,16 @@
 #include <assert.h>
 #include <string.h>
 
-#include "../include/openRTS.h"
-#include "../include/a_star.h"
-#include "../include/types.h"
+#include "openRTS.h"
+#include "a_star.h"
+#include "types.h"
 
 struct s_sprites	sprites;
 
-t_tile	*get_tile(Vector2 coord, t_map map)
+t_tile	*get_tile(Vector2 coord, t_map *map)
 {
 	// i have fucked up the coordinates somewhere ._.
-	return (&map.tiles[(int)coord.y][(int)coord.x]);
+	return (&map->tiles[(int)coord.y][(int)coord.x]);
 }
 
 Vector2 map_to_screen(Vector2 tile_pos)
@@ -61,7 +61,7 @@ void	load_sprites(void)
 	sprites.sprite_soldier = LoadTexture("sprites/soldier_front.png");
 }
 
-void	send_unit_to(t_unit *unit, t_map map, Vector2 tile_dest)
+void	send_unit_to(t_unit *unit, t_map *map, Vector2 tile_dest)
 {
 	unit->destination = tile_dest;
 	unit->path = pathfinding(map, unit->pos, unit->destination);
@@ -73,7 +73,7 @@ void clear_path(t_path *path)
 	path->size = 0;
 }
 
-void update_units(t_unit **units, int count, t_map map)
+void update_units(t_unit **units, int count, t_map *map)
 {
 	for (int i = 0; i < count; i++)
 		{
@@ -86,8 +86,9 @@ void update_units(t_unit **units, int count, t_map map)
 		// Путь уже развернут в правильном порядке
 		t_node *next_node = unit->path.nodes[0];
 		Vector2 next_pos = next_node->pos;
+		t_tile *next_tile = get_tile(next_pos, map;
 
-		if (get_tile(next_pos, map)->is_blocked)
+		if (next_tile->is_blocked || next_tile->unit_standing)
 		{
 			unit->path = pathfinding(map, unit->pos, unit->destination);
 			if (unit->path.size == 0)
@@ -97,7 +98,9 @@ void update_units(t_unit **units, int count, t_map map)
 		}
 
 		// Текущая позиция в grid-координатах
+		get_tile(unit->pos, map)->is_blocked = false;
 		unit->pos = next_pos;
+		get_tile(unit->pos, map)->is_blocked = true;
 		for (int i = 0; unit->path.nodes[i]; i++)
 			unit->path.nodes[i] = unit->path.nodes[i + 1];
 		unit->path.size -= 1;
@@ -114,7 +117,7 @@ t_unit	*make_soldier(Vector2 pos)
 	unit->pos =		pos;
 	unit->destination =	pos;
 	unit->type =		UNIT_SOLDIER;
-	unit->tpf =		TPF_SOLDIER;
+	unit->tpt =		TPT_SOLDIER;
 	unit->selected =	false;
 	unit->tile_size.x =	TILE_SIZE_X_SOLDIER;
 	unit->tile_size.y =	TILE_SIZE_Y_SOLDIER;
@@ -123,7 +126,7 @@ t_unit	*make_soldier(Vector2 pos)
 	return (unit);
 }
 
-void	draw_tile_grid(Camera2D camera, t_map map)
+void	draw_tile_grid(Camera2D camera, t_map *map)
 {
 	int start_x = (int)(camera.target.x - camera.offset.x / camera.zoom) / TILE_SIZE_PX;
 	int start_y = (int)(camera.target.y - camera.offset.y / camera.zoom) / TILE_SIZE_PX;
@@ -132,21 +135,21 @@ void	draw_tile_grid(Camera2D camera, t_map map)
 
 	if (start_x < 0) start_x = 0;
 	if (start_y < 0) start_y = 0;
-	if (end_x > map.width) end_x = map.width;
-	if (end_y > map.height) end_y = map.height;
+	if (end_x > map->width) end_x = map->width;
+	if (end_y > map->height) end_y = map->height;
 
 	for (int y = start_y; y < end_y; y++)
 	{
 		for (int x = start_x; x < end_x; x++)
 		{
-			Color tile_color = map.tiles[y][x].is_blocked ? RED : LIGHTGRAY;
+			Color tile_color = map->tiles[y][x].is_blocked ? RED : LIGHTGRAY;
 			DrawRectangle(x * TILE_SIZE_PX, y * TILE_SIZE_PX, TILE_SIZE_PX, TILE_SIZE_PX, tile_color);
 			DrawRectangleLines(x * TILE_SIZE_PX, y * TILE_SIZE_PX, TILE_SIZE_PX, TILE_SIZE_PX, DARKGRAY);
 		}
 	}
 }
 
-void	handle_controls(Camera2D *camera, t_map map, float dt)
+void	handle_controls(Camera2D *camera, t_map *map, float dt)
 {
 	const float camera_speed = 500.0f;
 
@@ -167,20 +170,20 @@ void	handle_controls(Camera2D *camera, t_map map, float dt)
 		Vector2 mouse_pos = GetScreenToWorld2D(GetMousePosition(), *camera);
 		int tile_x = (int)(mouse_pos.x / TILE_SIZE_PX);
 		int tile_y = (int)(mouse_pos.y / TILE_SIZE_PX);
-		if (tile_x >= 0 && tile_x < map.width && tile_y >= 0 && tile_y < map.height)
-			map.tiles[tile_y][tile_x].is_blocked = true;
+		if (tile_x >= 0 && tile_x < map->width && tile_y >= 0 && tile_y < map->height)
+			map->tiles[tile_y][tile_x].is_blocked = true;
 	}
 }
 
-bool	mouse_out_of_bounds(Vector2 mouse_pos, t_map map)
+bool	mouse_out_of_bounds(Vector2 mouse_pos, t_map *map)
 {
 	return (screen_to_map(mouse_pos).x < 0 ||
-		screen_to_map(mouse_pos).x >= map.width ||
+		screen_to_map(mouse_pos).x >= map->width ||
 		screen_to_map(mouse_pos).y < 0 ||
-		screen_to_map(mouse_pos).y >= map.height);
+		screen_to_map(mouse_pos).y >= map->height);
 }
 
-void	handle_mouse_right_button(t_map map, Camera2D camera, size_t selected_count, t_unit *units_selected)
+void	handle_mouse_right_button(t_map *map, Camera2D camera, size_t selected_count, t_unit *units_selected)
 {
 	Vector2 mouse_pos = GetScreenToWorld2D(GetMousePosition(), camera);
 
@@ -191,7 +194,7 @@ void	handle_mouse_right_button(t_map map, Camera2D camera, size_t selected_count
 		send_unit_to(&units_selected[i], map, screen_to_map(mouse_pos));
 }
 
-void	handle_mouse(t_unit **units_selected, size_t selected_count, t_map map, Camera2D *camera)
+void	handle_mouse(t_unit **units_selected, size_t selected_count, t_map *map, Camera2D *camera)
 {
 	float wheel;
 
@@ -209,26 +212,27 @@ void	handle_mouse(t_unit **units_selected, size_t selected_count, t_map map, Cam
 	}
 }
 
-t_map	create_map(int width, int height)
+t_map	*create_map(int width, int height)
 {
-	t_map	map;
+	t_map	*map;
 	int	x;
 
-	map.width = width;
-	map.height = height;
+	map = calloc(1, sizeof(t_map));
+	map->width = width;
+	map->height = height;
 
-	map.tiles = calloc(height, sizeof(t_tile *));
+	map->tiles = calloc(height, sizeof(t_tile *));
 	for (x = 0; x < height; x++)
 	{
-		map.tiles[x] = calloc(width, sizeof(t_tile));
+		map->tiles[x] = calloc(width, sizeof(t_tile));
 	}
 	return (map);
 }
 
 int	main(void)
 {
-	const int	screenWidth = GetScreenWidth();
-	const int	screenHeight = GetScreenHeight();
+	const int	screenWidth = 500; //GetScreenWidth();
+	const int	screenHeight = 500; //GetScreenHeight();
 
 	Camera2D camera = { 0 };
 	camera.target = (Vector2){ 0.0f, 0.0f };
@@ -236,8 +240,8 @@ int	main(void)
 	camera.rotation = 0.0f;
 	camera.zoom = 1.0f;
 
-	t_map map = create_map(100, 100);
-	map.nodes = create_node_grid(map);
+	t_map *map = create_map(100, 100);
+	map->nodes = create_node_grid(map);
 
 	float	dt;
 
@@ -255,7 +259,7 @@ int	main(void)
 	selected_count++;
 
 	InitWindow(screenWidth, screenHeight, "openRTS");
-	SetTargetFPS(30);
+	SetTargetFPS(60);
 	load_sprites();
 
 	while (!WindowShouldClose())

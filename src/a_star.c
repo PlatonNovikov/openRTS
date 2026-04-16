@@ -2,9 +2,9 @@
 #include "raylib.h"
 #include "raymath.h"
 
-#include "../include/a_star.h"
-#include "../include/openRTS.h"
-#include "../include/types.h"
+#include "a_star.h"
+#include "openRTS.h"
+#include "types.h"
 
 void	list_push(t_path *list, t_node *node)
 {
@@ -48,18 +48,18 @@ int	heuristic(t_node *a, t_node *b)
 	return abs((int)(a->pos.x - b->pos.x)) + abs((int)(a->pos.y - b->pos.y));
 }
 
-t_node **create_node_grid(t_map map)
+t_node **create_node_grid(t_map *map)
 {
 	t_node	**nodes;
 	int		x, y;
 
-	nodes = calloc(map.height, sizeof(t_node *));
+	nodes = calloc(map->height, sizeof(t_node *));
 	if (!nodes)
 		return NULL;
 
-	for (y = 0; y < map.height; y++)
+	for (y = 0; y < map->height; y++)
 	{
-		nodes[y] = calloc(map.width, sizeof(t_node));
+		nodes[y] = calloc(map->width, sizeof(t_node));
 		if (!nodes[y])
 		{
 			// Освобождение ранее выделенной памяти в случае ошибки
@@ -69,11 +69,11 @@ t_node **create_node_grid(t_map map)
 			return NULL;
 		}
 
-		for (x = 0; x < map.width; x++)
+		for (x = 0; x < map->width; x++)
 		{
 			nodes[y][x].pos.x = x;
 			nodes[y][x].pos.y = y;
-			nodes[y][x].is_blocked = map.tiles[y][x].is_blocked;
+			nodes[y][x].is_blocked = map->tiles[y][x].is_blocked;
 			nodes[y][x].g_cost = 0;
 			nodes[y][x].h_cost = 0;
 			nodes[y][x].f_cost = 0;
@@ -86,9 +86,9 @@ t_node **create_node_grid(t_map map)
 	}
 
 	// Второй проход для установки соседей (чтобы избежать обращения к неинициализированным узлам)
-	for (y = 0; y < map.height; y++)
+	for (y = 0; y < map->height; y++)
 	{
-		for (x = 0; x < map.width; x++)
+		for (x = 0; x < map->width; x++)
 		{
 			// Пропускаем непроходимые узлы
 			if (nodes[y][x].is_blocked)
@@ -99,7 +99,7 @@ t_node **create_node_grid(t_map map)
 				nodes[y][x].neighbors[0] = &nodes[y - 1][x];
 
 			// Юг (1)
-			if (y < map.height - 1 && !nodes[y + 1][x].is_blocked)
+			if (y < map->height - 1 && !nodes[y + 1][x].is_blocked)
 				nodes[y][x].neighbors[1] = &nodes[y + 1][x];
 
 			// Запад (2)
@@ -107,7 +107,7 @@ t_node **create_node_grid(t_map map)
 				nodes[y][x].neighbors[2] = &nodes[y][x - 1];
 
 			// Восток (3)
-			if (x < map.width - 1 && !nodes[y][x + 1].is_blocked)
+			if (x < map->width - 1 && !nodes[y][x + 1].is_blocked)
 				nodes[y][x].neighbors[3] = &nodes[y][x + 1];
 
 			// Проверка диагональных соседей с учётом стен
@@ -119,21 +119,21 @@ t_node **create_node_grid(t_map map)
 				nodes[y][x].neighbors[4] = &nodes[y - 1][x - 1];
 
 			// Северо-восток (5)
-			if (y > 0 && x < map.width - 1 &&
+			if (y > 0 && x < map->width - 1 &&
 				!nodes[y - 1][x + 1].is_blocked &&
 				!nodes[y - 1][x].is_blocked &&
 				!nodes[y][x + 1].is_blocked)
 				nodes[y][x].neighbors[5] = &nodes[y - 1][x + 1];
 
 			// Юго-запад (6)
-			if (y < map.height - 1 && x > 0 &&
+			if (y < map->height - 1 && x > 0 &&
 				!nodes[y + 1][x - 1].is_blocked &&
 				!nodes[y + 1][x].is_blocked &&
 				!nodes[y][x - 1].is_blocked)
 				nodes[y][x].neighbors[6] = &nodes[y + 1][x - 1];
 
 			// Юго-восток (7)
-			if (y < map.height - 1 && x < map.width - 1 &&
+			if (y < map->height - 1 && x < map->width - 1 &&
 				!nodes[y + 1][x + 1].is_blocked &&
 				!nodes[y + 1][x].is_blocked &&
 				!nodes[y][x + 1].is_blocked)
@@ -171,7 +171,7 @@ void	free_node_grid(t_node **grid, int height)
 	free(grid);
 }
 
-t_path pathfinding(t_map map, Vector2 start, Vector2 end)
+t_path pathfinding(t_map *map, Vector2 start, Vector2 end)
 {
 	t_node	**grid = create_node_grid(map);
 	t_path	path = {0};
@@ -247,7 +247,7 @@ t_path pathfinding(t_map map, Vector2 start, Vector2 end)
 	else
 		path.size = 0; // Path not found
 
-	free_node_grid(grid, map.height);
+	free_node_grid(grid, map->height);
 
 	return path;
 }
