@@ -38,16 +38,18 @@ Vector2 screen_to_map(Vector2 screen_pos)
 
 // }
 
-void	draw_units(t_unit **units, int count)
+void	draw_units(t_game *game)
 {
-	for (int i = 0; i < count; i++)
+	t_vec	*units = game->units;
+	for (int i = 0; i < units->size; i++)
 	{
-		switch (units[i]->type)
+		t_unit *unit = (t_unit *)vec_get(units, i);
+		switch (unit->type)
 		{
 		case UNIT_SOLDIER:
 			DrawTexture(sprites.sprite_soldier,
-				map_to_screen(units[i]->pos).x,
-				map_to_screen(units[i]->pos).y,
+				map_to_screen(unit->pos).x,
+				map_to_screen(unit->pos).y,
 				WHITE);
 			break;
 		default:
@@ -61,10 +63,10 @@ void	load_sprites(void)
 	sprites.sprite_soldier = LoadTexture("sprites/soldier_front.png");
 }
 
-void	send_unit_to(t_unit *unit, t_map *map, Vector2 tile_dest)
+void	send_unit_to(t_game *game, t_unit *unit, Vector2 tile_dest)
 {
 	unit->destination = tile_dest;
-	unit->path = pathfinding(map, unit->pos, unit->destination);
+	unit->path = pathfinding(game->map, unit->pos, unit->destination);
 }
 
 void clear_path(t_path *path)
@@ -73,11 +75,13 @@ void clear_path(t_path *path)
 	path->size = 0;
 }
 
-void update_units(t_unit **units, int count, t_map *map)
+void update_units(t_game *game)
 {
-	for (int i = 0; i < count; i++)
+	t_map *map = game->map;
+
+	for (int i = 0; i < game->units->size; i++)
 		{
-		t_unit *unit = units[i];
+		t_unit *unit = vec_get(game->units, i);
 
 		if (unit->path.size == 0)
 			continue;
@@ -86,7 +90,7 @@ void update_units(t_unit **units, int count, t_map *map)
 		// Путь уже развернут в правильном порядке
 		t_node *next_node = unit->path.nodes[0];
 		Vector2 next_pos = next_node->pos;
-		t_tile *next_tile = get_tile(next_pos, map;
+		t_tile *next_tile = get_tile(next_pos, map);
 
 		if (next_tile->is_blocked || next_tile->unit_standing)
 		{
@@ -98,17 +102,22 @@ void update_units(t_unit **units, int count, t_map *map)
 		}
 
 		// Текущая позиция в grid-координатах
-		get_tile(unit->pos, map)->is_blocked = false;
+		get_tile(unit->pos, map)->unit_standing = false;
 		unit->pos = next_pos;
-		get_tile(unit->pos, map)->is_blocked = true;
+		get_tile(unit->pos, map)->unit_standing = true;
 		for (int i = 0; unit->path.nodes[i]; i++)
 			unit->path.nodes[i] = unit->path.nodes[i + 1];
 		unit->path.size -= 1;
 	}
 }
 
-t_unit	*make_soldier(Vector2 pos)
+void	make_soldier(t_game *game, Vector2 pos)
 {
+	t_tile *tile = get_tile(pos, game->map);
+	if (tile->is_blocked || tile->unit_standing)
+		return;
+	tile->unit_standing = true;
+	
 	t_unit	*unit = calloc(1, sizeof(t_unit));
 
 	assert(unit != NULL);
@@ -123,11 +132,15 @@ t_unit	*make_soldier(Vector2 pos)
 	unit->tile_size.y =	TILE_SIZE_Y_SOLDIER;
 	unit->px_size.x =	PX_SIZE_X_SOLDIER;
 	unit->px_size.y =	PX_SIZE_Y_SOLDIER;
-	return (unit);
+	vec_append(game->units, unit);
+	vec_append(game->units_selected, unit);
 }
 
-void	draw_tile_grid(Camera2D camera, t_map *map)
+void	draw_tile_grid(t_game *game)
 {
+	Camera2D camera = game->camera;
+	t_map *map = game->map;
+
 	int start_x = (int)(camera.target.x - camera.offset.x / camera.zoom) / TILE_SIZE_PX;
 	int start_y = (int)(camera.target.y - camera.offset.y / camera.zoom) / TILE_SIZE_PX;
 	int end_x = (int)(camera.target.x + (GetScreenWidth() - camera.offset.x) / camera.zoom) / TILE_SIZE_PX + 1;
@@ -149,9 +162,13 @@ void	draw_tile_grid(Camera2D camera, t_map *map)
 	}
 }
 
-void	handle_controls(Camera2D *camera, t_map *map, float dt)
+void	handle_controls(t_game *game)
 {
 	const float camera_speed = 500.0f;
+
+	Camera2D	*camera = &game->camera;
+	const float	dt = game->dt;
+	t_map		*map = game->map;
 
 	if (IsKeyDown(KEY_W))
 		camera->target.y -= camera_speed * dt;
@@ -173,6 +190,18 @@ void	handle_controls(Camera2D *camera, t_map *map, float dt)
 		if (tile_x >= 0 && tile_x < map->width && tile_y >= 0 && tile_y < map->height)
 			map->tiles[tile_y][tile_x].is_blocked = true;
 	}
+
+	//spawn a soldier
+	if (IsKeyDown(KEY_I))
+	{
+		Vector2 mouse_pos = GetScreenToWorld2D(GetMousePosition(), *camera);
+		int tile_x = (int)(mouse_pos.x / TILE_SIZE_PX);
+		int tile_y = (int)(mouse_pos.y / TILE_SIZE_PX);
+		if (tile_x >= 0 && tile_x < map->width && tile_y >= 0 && tile_y < map->height)
+		{
+			make_soldier(game, (Vector2){(float)tile_x, (float)tile_y});
+		}
+	}
 }
 
 bool	mouse_out_of_bounds(Vector2 mouse_pos, t_map *map)
@@ -183,24 +212,28 @@ bool	mouse_out_of_bounds(Vector2 mouse_pos, t_map *map)
 		screen_to_map(mouse_pos).y >= map->height);
 }
 
-void	handle_mouse_right_button(t_map *map, Camera2D camera, size_t selected_count, t_unit *units_selected)
+void	handle_mouse_right_button(t_game *game)
 {
-	Vector2 mouse_pos = GetScreenToWorld2D(GetMousePosition(), camera);
+	t_vec *units = game->units_selected;
 
-	if (mouse_out_of_bounds(mouse_pos, map))
+	Vector2 mouse_pos = GetScreenToWorld2D(GetMousePosition(), game->camera);
+
+	if (mouse_out_of_bounds(mouse_pos, game->map))
 		return ;
 
-	for (size_t i = 0; i < selected_count; i++)
-		send_unit_to(&units_selected[i], map, screen_to_map(mouse_pos));
+	for (size_t i = 0; i < units->size; i++)
+		send_unit_to(game, vec_get(units, i), screen_to_map(mouse_pos));
 }
 
-void	handle_mouse(t_unit **units_selected, size_t selected_count, t_map *map, Camera2D *camera)
+void	handle_mouse(t_game *game)
 {
+	Camera2D	*camera = &game->camera;
+
 	float wheel;
 
 	//right click to move selected units
-	if (IsMouseButtonPressed(MOUSE_RIGHT_BUTTON))
-		handle_mouse_right_button(map, *camera, selected_count, *units_selected);
+	if (IsMouseButtonDown(MOUSE_RIGHT_BUTTON))
+		handle_mouse_right_button(game);
 
 	//wheel zoom
 	wheel = GetMouseWheelMove();
@@ -229,52 +262,48 @@ t_map	*create_map(int width, int height)
 	return (map);
 }
 
+void	game_init(t_game *game)
+{
+	game->screenWidth = 500; //GetScreenWidth();
+	game->screenHeight = 500; //GetScreenHeight();
+
+	game->camera = (Camera2D){ 0 };
+	game->camera.target = (Vector2){ 0.0f, 0.0f };
+	game->camera.offset = (Vector2){game->screenWidth/2.0f, game->screenHeight/2.0f};
+	game->camera.rotation = 0.0f;
+	game->camera.zoom = 1.0f;
+
+	game->map = create_map(100, 100);
+	game->map->nodes = create_node_grid(game->map);
+
+	game->dt = 0.0f;
+
+	game->units = vec_init();
+	game->units_selected = vec_init();
+}
+
 int	main(void)
 {
-	const int	screenWidth = 500; //GetScreenWidth();
-	const int	screenHeight = 500; //GetScreenHeight();
+	t_game game = {0};
+	game_init(&game);
 
-	Camera2D camera = { 0 };
-	camera.target = (Vector2){ 0.0f, 0.0f };
-	camera.offset = (Vector2){screenWidth/2.0f, screenHeight/2.0f};
-	camera.rotation = 0.0f;
-	camera.zoom = 1.0f;
-
-	t_map *map = create_map(100, 100);
-	map->nodes = create_node_grid(map);
-
-	float	dt;
-
-	t_unit	*units[MAX_UNITS];
-	size_t	unit_count = 0;
-	t_unit	*units_selected[MAX_UNITS];
-	size_t	selected_count = 0;
-
-	units[0] = make_soldier((Vector2){2, 2});
-	units[0]->destination.x = 4;
-	units[0]->destination.y = 4;
-
-	units_selected[0] = units[0];
-	unit_count++;
-	selected_count++;
-
-	InitWindow(screenWidth, screenHeight, "openRTS");
+	InitWindow(game.screenWidth, game.screenHeight, "openRTS");
 	SetTargetFPS(60);
 	load_sprites();
 
 	while (!WindowShouldClose())
 	{
-		dt = GetFrameTime();
+		game.dt = GetFrameTime();
 
 		BeginDrawing();
 		ClearBackground(BLACK);
-		BeginMode2D(camera);
-		draw_tile_grid(camera, map);
-		draw_units(units, 1);
-		handle_controls(&camera, map, dt);
+		BeginMode2D(game.camera);
+		draw_tile_grid(&game);
+		draw_units(&game);
+		handle_controls(&game);
 		EndMode2D();
-		handle_mouse(units_selected, selected_count, map, &camera);
-		update_units(units, 1, map);
+		handle_mouse(&game);
+		update_units(&game);
 		EndDrawing();
 	}
 	CloseWindow();

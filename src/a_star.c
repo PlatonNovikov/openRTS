@@ -74,6 +74,7 @@ t_node **create_node_grid(t_map *map)
 			nodes[y][x].pos.x = x;
 			nodes[y][x].pos.y = y;
 			nodes[y][x].is_blocked = map->tiles[y][x].is_blocked;
+			nodes[y][x].unit_standing = map->tiles[y][x].unit_standing;
 			nodes[y][x].g_cost = 0;
 			nodes[y][x].h_cost = 0;
 			nodes[y][x].f_cost = 0;
@@ -206,7 +207,8 @@ t_path pathfinding(t_map *map, Vector2 start, Vector2 end)
 		for (int i = 0; i < 8; i++)
 		{
 			t_node *neighbor = current->neighbors[i];
-			if (!neighbor || list_contains(&closed, neighbor))
+
+			if (!neighbor || list_contains(&closed, neighbor) || neighbor->unit_standing)
 				continue;
 
 			int tentative_g = current->g_cost + 1;

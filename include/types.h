@@ -7,6 +7,8 @@
 #include "raylib.h"
 #include <stdlib.h>
 
+#include "vector.h"
+
 typedef struct	s_node
 {
 	Vector2	pos;
@@ -14,6 +16,7 @@ typedef struct	s_node
 	int	h_cost;
 	int	f_cost;
 	bool	is_blocked;
+	bool	unit_standing;
 
 	struct s_node	*parent;
 	struct s_node	*neighbors[8];
@@ -73,5 +76,20 @@ struct s_sprites
 {
 	Texture2D	sprite_soldier;
 };
+
+
+typedef struct s_game
+{
+	int			screenWidth;
+	int			screenHeight;
+	Camera2D	camera;
+
+	t_map	*map;
+
+	float	dt;
+
+	t_vec	*units;			//(t_unit *)
+	t_vec	*units_selected;//(t_unit *)
+} t_game;
 
 #endif
